@@ -2260,3 +2260,138 @@ BEGIN
 END;
 GO
 
+-- =============================================
+-- VÍ DỤ CHO CÁC THỦ TỤC
+-- =============================================
+
+-- 1. Thủ tục quản lý tài khoản
+EXEC sp_Them_TaiKhoan 'TKNH11', 'KH01', 'NV03', '100000000011', 50000000, '2024-01-15', N'Hoạt động';
+EXEC sp_Sua_TaiKhoan 'TKNH01', @SoDu = 25000000;
+EXEC sp_Xoa_TaiKhoan 'TKNH11';
+
+-- 2. Thủ tục quản lý sổ tiết kiệm
+EXEC sp_MoSoTietKiemMoi 'STK11', 'BSD11', 'KH01', 'LHTK01', 'HTG01', 'HTTL01', 50000000, 'NV01';
+EXEC sp_GuiTienVaoSo 'GDnop11', 'STK01', 10000000, 'NV01', 'LGD01';
+EXEC sp_RutTienTuSo 'GDrut11', 'STK01', 5000000, 'NV02', 'LGD02';
+EXEC sp_Sua_SoTietKiem 'STK01', @TienGoc = 25000000;
+
+-- 3. Thủ tục tính lãi và số dư
+EXEC sp_Them_BangTinhLai 'BTL11', 'STK01', 'NV01', '2024-01-31', 4.00, 25000000, 83333, 150000;
+EXEC sp_TinhLaiHangThang 'BTL12', 'STK01', 'NV01';
+EXEC sp_Them_BangSoDu 'BSD11', 'STK01', 25000000, 150000;
+
+-- 4. Thủ tục quản lý nhân viên và khách hàng
+EXEC sp_Them_NhanVien 'NV11', N'Trần Thị Mai', N'Giao dịch viên', N'Chi nhánh 1', 'mai.tt@bank.vn', '0901110011', '2024-01-01', 13000000, N'Đang làm việc';
+EXEC sp_Them_KhachHang 'KH11', 'NV06', N'Nguyễn Văn Mới', N'Hà Nội', '0902221011', 'new@gmail.com', '123456789011';
+EXEC sp_Sua_KhachHang 'KH01', @SDT = '0902221111';
+
+-- 5. Thủ tục tra cứu và thống kê
+EXEC sp_TraCuuSoTietKiem @MaSTK = 'STK01';
+EXEC sp_TraCuuKhachHangTheoCMND '123456789001';
+EXEC sp_KiemTraSoDu 'STK01';
+EXEC sp_ThongKeTongQuanHeThong '2023-01-01', '2024-01-31';
+EXEC sp_ThongKeTheoLoaiHinhTK 'LHTK01';
+EXEC sp_ThongKeDoanhSoTheoThoiGian N'THANG', '2023-01-01', '2024-01-31';
+
+-- =============================================
+-- VÍ DỤ KÍCH HOẠT TRIGGER
+-- =============================================
+
+-- 1. Trigger trên bảng SOTIETKIEM
+DELETE FROM SOTIETKIEM WHERE MaSTK = 'STK01'; -- Sẽ bị trigger chặn
+UPDATE SOTIETKIEM SET MaLoaiHinh = 'LHTK02' WHERE MaSTK = 'STK01'; -- Trigger tự động tính lại ngày đáo hạn
+
+-- 2. Trigger trên bảng GIAODICH
+INSERT INTO GIAODICHNOP VALUES ('GDnop11', 'STK01', 'NV01', 'LGD01', 5000000, GETDATE(), N'Tiền mặt', NULL);
+INSERT INTO GIAODICHRUT VALUES ('GDrut11', 'STK01', 'NV02', 'LGD02', 2000000, GETDATE(), 4.0, 25000, N'Rút 1 phần');
+
+-- 3. Trigger trên bảng BANGTINHLAI
+INSERT INTO BANGTINHLAI VALUES ('BTL11', 'STK01', 'NV01', '2024-01-31', 4.00, 25000000, 83333, 83333);
+
+-- 4. Trigger trên bảng NHANVIEN
+UPDATE NHANVIEN SET TrangThai = N'Nghỉ việc' WHERE MaNV = 'NV01'; -- Trigger tự động cập nhật tài khoản
+DELETE FROM NHANVIEN WHERE MaNV = 'NV02'; -- Trigger chuyển thành đánh dấu nghỉ việc
+
+-- 5. Trigger trên bảng KHACHHANG
+INSERT INTO KHACHHANG VALUES ('KH11', 'NV06', N'Nguyễn Văn Trùng', N'Hà Nội', '0902221011', 'trung@gmail.com', '123456789001', GETDATE()); -- Sẽ bị trigger chặn
+
+-- 6. Trigger trên bảng BAOCAO
+INSERT INTO BAOCAO VALUES ('BC11', 'STK01', 'NV01', GETDATE(), N'Lãi tháng', 0, 0, 0); -- Trigger tự động tính toán
+
+-- =============================================
+-- SELECT TẤT CẢ CÁC VIEW
+-- =============================================
+
+SELECT * FROM V_ThongTinKH;
+SELECT * FROM V_TaiKhoanKH;
+SELECT * FROM V_STKChiTiet;
+SELECT * FROM V_STK_DANGHOATDONG;
+SELECT * FROM V_STK_SAPDAOHAN;
+SELECT * FROM V_GDNOPTIEN;
+SELECT * FROM V_GDRUTTIEN;
+SELECT * FROM V_LichSuGD_STK;
+SELECT * FROM V_BANGTINHLAICHITIET;
+SELECT * FROM V_SODUSTK;
+SELECT * FROM V_TONGHOPSODU;
+SELECT * FROM V_BaoCaoChiTiet;
+SELECT * FROM V_BaoCaoTheoKH;
+SELECT * FROM V_BaoCaoTheoNV;
+SELECT * FROM V_KhachHangKhongHoatDong_ChiTiet;
+SELECT * FROM V_KhachHangTiemNang;
+SELECT * FROM V_TongHopSTK_KH;
+SELECT * FROM V_TONGHOPGD;
+SELECT * FROM V_GD_THEONGAY;
+
+-- =============================================
+-- VÍ DỤ SỬ DỤNG CÁC HÀM (FUNCTION)
+-- =============================================
+
+-- Tính lãi đến ngày bất kỳ
+SELECT dbo.fn_TinhLaiDenNgay(20000000, 4.00, '2023-03-01', '2024-01-31') AS LaiTichLuy;
+
+-- Tính lãi theo số ngày
+SELECT dbo.fn_TinhLaiTheoNgay(20000000, 4.00, 90) AS Lai90Ngay;
+
+-- Tính ngày đáo hạn
+SELECT dbo.fn_TinhNgayDaoHan('2023-03-01', 3) AS NgayDaoHan;
+
+-- Kiểm tra đáo hạn
+SELECT dbo.fn_KiemTraDaoHan('2024-06-01') AS TrangThaiDaoHan;
+
+-- Tính tổng tiền đã nạp vào STK
+SELECT dbo.fn_TongTienDaNhapSTK('STK01') AS TongTienNhap;
+
+-- Tính tổng tiền đã rút từ STK
+SELECT dbo.fn_TongTienDaRutSTK('STK01') AS TongTienRut;
+
+-- Sử dụng hàm trong truy vấn phức tạp
+SELECT 
+    MaSTK,
+    TienGoc,
+    dbo.fn_TinhLaiDenNgay(TienGoc, 4.00, NgayMoSo, GETDATE()) AS LaiDuTinh,
+    dbo.fn_TongTienDaNhapSTK(MaSTK) AS TongNhap,
+    dbo.fn_TongTienDaRutSTK(MaSTK) AS TongRut
+FROM SOTIETKIEM
+WHERE TrangThai = N'Đang hoạt động';
+
+-- =============================================
+-- VÍ DỤ TỔNG HỢP - BÁO CÁO DOANH SỐ
+-- =============================================
+
+-- Báo cáo tổng hợp hiệu suất nhân viên
+EXEC sp_ThongKeTheoNhanVien 'NV01', '2023-01-01', '2024-01-31';
+
+-- Báo cáo doanh số theo tháng
+EXEC sp_ThongKeDoanhSoTheoThoiGian N'THANG', '2023-01-01', '2024-01-31';
+
+-- Xem tất cả khách hàng tiềm năng
+SELECT * FROM V_KhachHangTiemNang;
+
+-- Xem tất cả sổ sắp đáo hạn
+SELECT * FROM V_STK_SAPDAOHAN;
+
+-- Thống kê tổng quan hệ thống
+EXEC sp_ThongKeTongQuanHeThong;
+
+
+
