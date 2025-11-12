@@ -1,64 +1,116 @@
 ﻿-- =============================================
--- 5. Hàm fn_LaiTichLuyHienTai
--- Mục đích: Lấy tổng lãi tích lũy hiện tại của 1 sổ tiết kiệm
+-- TỔNG HỢP CÁC FUNCTION
 -- =============================================
-CREATE FUNCTION fn_LaiTichLuyHienTai (@MaSTK CHAR(10))
+
+USE S03_QLTKNH;
+GO
+
+-- =============================================
+-- FUNCTION TÍNH TOÁN LÃI SUẤT
+-- =============================================
+
+-- Function: Tính lãi đến ngày bất kỳ
+CREATE OR ALTER FUNCTION fn_TinhLaiDenNgay(
+    @TienGoc DECIMAL(18,2),
+    @LaiSuat DECIMAL(5,2),
+    @NgayMo DATE,
+    @NgayTinh DATE
+)
 RETURNS DECIMAL(18,2)
 AS
 BEGIN
-    DECLARE @LaiTichLuy DECIMAL(18,2);
+    DECLARE @SoNgay INT;
+    DECLARE @Lai DECIMAL(18,2);
 
-    SELECT @LaiTichLuy = LaiTichLuy
-    FROM BANGSODU
-    WHERE MaSTK = @MaSTK;
+    SET @SoNgay = DATEDIFF(DAY, @NgayMo, @NgayTinh);
+    SET @Lai = @TienGoc * (@LaiSuat / 100) * (@SoNgay / 365.0);
 
-    IF @LaiTichLuy IS NULL
-        SET @LaiTichLuy = 0;
+    RETURN ROUND(@Lai, 2);
+END;
+GO
 
-    RETURN @LaiTichLuy;
+-- Function: Tính lãi theo số ngày
+CREATE OR ALTER FUNCTION fn_TinhLaiTheoNgay
+(
+    @SoTien DECIMAL(18,2),
+    @LaiSuatNam DECIMAL(5,2),
+    @SoNgay INT
+)
+RETURNS DECIMAL(18,2)
+AS
+BEGIN
+    DECLARE @Lai DECIMAL(18,2);
+    SET @Lai = @SoTien * (@LaiSuatNam / 100) * (@SoNgay / 365.0);
+    RETURN @Lai;
 END;
 GO
 
 -- =============================================
--- 6. Hàm fn_TongTienNop
--- Mục đích: Tính tổng tiền nộp của 1 sổ tiết kiệm
+-- FUNCTION TÍNH TOÁN NGÀY THÁNG
 -- =============================================
-CREATE FUNCTION fn_TongTienNop (@MaSTK CHAR(10))
+
+-- Function: Tính ngày đáo hạn
+CREATE OR ALTER FUNCTION fn_TinhNgayDaoHan
+(
+    @NgayMoSo DATE,
+    @KyHanThang INT
+)
+RETURNS DATE
+AS
+BEGIN
+    RETURN DATEADD(MONTH, @KyHanThang, @NgayMoSo);
+END;
+GO
+
+-- Function: Kiểm tra đáo hạn
+CREATE OR ALTER FUNCTION fn_KiemTraDaoHan(@NgayDaoHan DATE)
+RETURNS NVARCHAR(20)
+AS
+BEGIN
+    DECLARE @KetQua NVARCHAR(20);
+
+    IF @NgayDaoHan <= GETDATE()
+        SET @KetQua = N'Đã đáo hạn';
+    ELSE
+        SET @KetQua = N'Chưa đáo hạn';
+
+    RETURN @KetQua;
+END;
+GO
+
+-- =============================================
+-- FUNCTION TÍNH TỔNG SỐ TIỀN ĐÃ NẠP VÀO STK
+-- =============================================
+
+CREATE OR ALTER FUNCTION fn_TongTienDaNhapSTK(@MaSTK CHAR(10))
 RETURNS DECIMAL(18,2)
 AS
 BEGIN
-    DECLARE @TongNop DECIMAL(18,2);
+    DECLARE @TongTienNhap DECIMAL(18,2);
 
-    SELECT @TongNop = SUM(SoTienNop)
+    SELECT @TongTienNhap = ISNULL(SUM(SoTienNop), 0)
     FROM GIAODICHNOP
     WHERE MaSTK = @MaSTK;
 
-    IF @TongNop IS NULL
-        SET @TongNop = 0;
-
-    RETURN @TongNop;
+    RETURN @TongTienNhap;
 END;
 GO
 
 -- =============================================
--- 7. Hàm fn_TongTienRut
--- Mục đích: Tính tổng tiền rút của 1 sổ tiết kiệm
+-- FUNCTION TÍNH TỔNG SỐ TIỀN ĐÃ RÚT TỪ STK
 -- =============================================
-CREATE FUNCTION fn_TongTienRut (@MaSTK CHAR(10))
+
+CREATE OR ALTER FUNCTION fn_TongTienDaRutSTK(@MaSTK CHAR(10))
 RETURNS DECIMAL(18,2)
 AS
 BEGIN
-    DECLARE @TongRut DECIMAL(18,2);
+    DECLARE @TongTienRut DECIMAL(18,2);
 
-    SELECT @TongRut = SUM(SoTienRut)
+    SELECT @TongTienRut = ISNULL(SUM(SoTienRut), 0)
     FROM GIAODICHRUT
     WHERE MaSTK = @MaSTK;
 
-    IF @TongRut IS NULL
-        SET @TongRut = 0;
-
-    RETURN @TongRut;
+    RETURN @TongTienRut;
 END;
 GO
 
---Đức

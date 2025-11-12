@@ -1,65 +1,119 @@
-﻿USE S03_QLTKNH;
-GO
-------------------------------------------------------------
--- 📈 V. BÁO CÁO & THỐNG KÊ
-------------------------------------------------------------
-
--- =============================================
--- VI. VIEW BÁO CÁO & GIÁM SÁT
+﻿-- =============================================
+-- TỔNG HỢP CÁC VIEW
 -- =============================================
 
--- 18️⃣ Chi tiết báo cáo
-CREATE VIEW V_BaoCaoChiTiet AS
-SELECT 
-    BAOCAO.MaBaoCao,
-    KHACHHANG.TenKH,
-    BAOCAO.NgayBaoCao,
-    BAOCAO.LoaiBaoCao,
-    BAOCAO.SoDuHienTai
-FROM BAOCAO, SOTIETKIEM, TAIKHOAN, KHACHHANG
-WHERE BAOCAO.MaSTK = SOTIETKIEM.MaSTK
-  AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
-  AND TAIKHOAN.MaKH = KHACHHANG.MaKH;
+USE S03_QLTKNH;
 GO
 
--- 19️⃣ Báo cáo theo khách hàng
-CREATE VIEW V_BaoCaoTheoKH AS
+-- =============================================
+-- I. VIEW LẤY THÔNG TIN TỪ 2 BẢNG TRỞ LÊN
+-- =============================================
+
+-- 1. View thông tin khách hàng (2 bảng)
+CREATE OR ALTER VIEW V_ThongTinKH AS
 SELECT 
-    KHACHHANG.MaKH,
+    KHACHHANG.MaKH, 
+    KHACHHANG.TenKH, 
+    KHACHHANG.SDT, 
+    KHACHHANG.Email, 
+    KHACHHANG.MaNVTiepTan, 
+    NHANVIEN.TenNV
+FROM KHACHHANG, NHANVIEN
+WHERE KHACHHANG.MaNVTiepTan = NHANVIEN.MaNV;
+GO
+
+-- 2. View tài khoản khách hàng (2 bảng)
+CREATE OR ALTER VIEW V_TaiKhoanKH AS
+SELECT 
+    TAIKHOAN.MaTK, 
+    TAIKHOAN.SoTK, 
+    KHACHHANG.TenKH, 
+    TAIKHOAN.SoDu, 
+    TAIKHOAN.TrangThai
+FROM TAIKHOAN, KHACHHANG
+WHERE TAIKHOAN.MaKH = KHACHHANG.MaKH;
+GO
+
+-- 3. View sổ tiết kiệm chi tiết (6 bảng)
+CREATE OR ALTER VIEW V_STKChiTiet AS
+SELECT
+    SOTIETKIEM.MaSTK,
     KHACHHANG.TenKH,
-    SUM(BAOCAO.TongTienGui) AS TongTienGui,
-    SUM(BAOCAO.TongLaiNhan) AS TongLaiNhan,
-    SUM(BAOCAO.SoDuHienTai) AS TongSoDu
-FROM BAOCAO, SOTIETKIEM, TAIKHOAN, KHACHHANG
-WHERE BAOCAO.MaSTK = SOTIETKIEM.MaSTK
+    LOAIHINHTK.TenLoaiHinh,
+    HINHTHUCGUI.TenHTGui,
+    HINHTHUCTRALAI.TenHTTraLai,
+    SOTIETKIEM.TienGoc,
+    SOTIETKIEM.TrangThai
+FROM SOTIETKIEM, TAIKHOAN, KHACHHANG, LOAIHINHTK, HINHTHUCGUI, HINHTHUCTRALAI
+WHERE SOTIETKIEM.MaTK = TAIKHOAN.MaTK
+  AND TAIKHOAN.MaKH = KHACHHANG.MaKH
+  AND SOTIETKIEM.MaLoaiHinh = LOAIHINHTK.MaLoaiHinh
+  AND SOTIETKIEM.MaHTGui = HINHTHUCGUI.MaHTGui
+  AND SOTIETKIEM.MaHTTraLai = HINHTHUCTRALAI.MaHTTraLai;
+GO
+
+-- 4. View sổ tiết kiệm đang hoạt động (3 bảng)
+CREATE OR ALTER VIEW V_STK_DANGHOATDONG AS
+SELECT 
+    SOTIETKIEM.MaSTK,
+    KHACHHANG.TenKH,
+    SOTIETKIEM.NgayMoSo,
+    SOTIETKIEM.NgayDaoHan,
+    SOTIETKIEM.TrangThai
+FROM SOTIETKIEM, TAIKHOAN, KHACHHANG
+WHERE SOTIETKIEM.MaTK = TAIKHOAN.MaTK
+  AND TAIKHOAN.MaKH = KHACHHANG.MaKH
+  AND SOTIETKIEM.TrangThai = N'Đang hoạt động';
+GO
+
+-- 5. View sổ tiết kiệm sắp đáo hạn (3 bảng)
+CREATE OR ALTER VIEW V_STK_SAPDAOHAN AS
+SELECT 
+    SOTIETKIEM.MaSTK,
+    KHACHHANG.TenKH,
+    SOTIETKIEM.NgayMoSo,
+    SOTIETKIEM.NgayDaoHan,
+    SOTIETKIEM.TrangThai
+FROM SOTIETKIEM, TAIKHOAN, KHACHHANG
+WHERE SOTIETKIEM.MaTK = TAIKHOAN.MaTK
+  AND TAIKHOAN.MaKH = KHACHHANG.MaKH
+  AND SOTIETKIEM.NgayDaoHan BETWEEN GETDATE() AND DATEADD(DAY,7,GETDATE());
+GO
+
+-- 6. View giao dịch nộp tiền (5 bảng)
+CREATE OR ALTER VIEW V_GDNOPTIEN AS
+SELECT 
+    GIAODICHNOP.MaGDnop,
+    KHACHHANG.TenKH,
+    NHANVIEN.TenNV,
+    GIAODICHNOP.SoTienNop,
+    GIAODICHNOP.NgayGD,
+    GIAODICHNOP.HTThanhToan
+FROM GIAODICHNOP, SOTIETKIEM, TAIKHOAN, KHACHHANG, NHANVIEN
+WHERE GIAODICHNOP.MaSTK = SOTIETKIEM.MaSTK
   AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
   AND TAIKHOAN.MaKH = KHACHHANG.MaKH
-GROUP BY KHACHHANG.MaKH, KHACHHANG.TenKH;
+  AND GIAODICHNOP.MaNVThucHien = NHANVIEN.MaNV;
 GO
 
--- 20️⃣ Báo cáo theo nhân viên
-CREATE VIEW V_BaoCaoTheoNV AS
+-- 7. View giao dịch rút tiền (5 bảng)
+CREATE OR ALTER VIEW V_GDRUTTIEN AS
 SELECT 
-    NHANVIEN.MaNV,
+    GIAODICHRUT.MaGDrut,
+    KHACHHANG.TenKH,
     NHANVIEN.TenNV,
-    COUNT(BAOCAO.MaSTK) AS SoLuongBaoCao,
-    SUM(BAOCAO.TongTienGui) AS TongTienGui
-FROM BAOCAO, NHANVIEN
-WHERE BAOCAO.MaNVTao = NHANVIEN.MaNV
-GROUP BY NHANVIEN.MaNV, NHANVIEN.TenNV;
+    GIAODICHRUT.SoTienRut,
+    GIAODICHRUT.NgayGD,
+    GIAODICHRUT.LaiNhanDuoc
+FROM GIAODICHRUT, SOTIETKIEM, TAIKHOAN, KHACHHANG, NHANVIEN
+WHERE GIAODICHRUT.MaSTK = SOTIETKIEM.MaSTK
+  AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
+  AND TAIKHOAN.MaKH = KHACHHANG.MaKH
+  AND GIAODICHRUT.MaNVThucHien = NHANVIEN.MaNV;
 GO
 
--- 21️⃣ Báo cáo tổng hợp toàn hệ thống
-CREATE VIEW V_BaoCaoTongHop AS
-SELECT 
-    COUNT(MaSTK) AS TongSoSTK,
-    SUM(TongTienGui) AS TongTienGui,
-    SUM(TongLaiNhan) AS TongLaiNhan
-FROM BAOCAO;
-GO
-
--- 22️⃣ Lịch sử giao dịch theo sổ
-CREATE VIEW V_LichSuGD_STK AS
+-- 8. View lịch sử giao dịch theo sổ (4 bảng)
+CREATE OR ALTER VIEW V_LichSuGD_STK AS
 SELECT 
     SOTIETKIEM.MaSTK,
     KHACHHANG.TenKH,
@@ -85,17 +139,121 @@ WHERE GIAODICHRUT.MaSTK = SOTIETKIEM.MaSTK
   AND TAIKHOAN.MaKH = KHACHHANG.MaKH;
 GO
 
--- 23️⃣ Sổ tiết kiệm quá hạn
-CREATE VIEW V_STK_QuaHan AS
+-- 9. View bảng tính lãi chi tiết (4 bảng)
+CREATE OR ALTER VIEW V_BANGTINHLAICHITIET AS
 SELECT 
-    MaSTK, NgayDaoHan, TrangThai
-FROM SOTIETKIEM
-WHERE NgayDaoHan < GETDATE()
-  AND TrangThai = N'Đang hoạt động';
+    BANGTINHLAI.MaTinhLai,
+    SOTIETKIEM.MaSTK,
+    KHACHHANG.TenKH,
+    BANGTINHLAI.LaiSuatApDung,
+    BANGTINHLAI.LaiThangNay,
+    BANGTINHLAI.LaiTichLuy
+FROM BANGTINHLAI, SOTIETKIEM, TAIKHOAN, KHACHHANG
+WHERE BANGTINHLAI.MaSTK = SOTIETKIEM.MaSTK
+  AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
+  AND TAIKHOAN.MaKH = KHACHHANG.MaKH;
 GO
 
--- 24️⃣ Khách hàng tiềm năng
-CREATE VIEW V_KhachHangTiemNang AS
+-- 10. View số dư sổ tiết kiệm (4 bảng)
+CREATE OR ALTER VIEW V_SODUSTK AS
+SELECT 
+    SOTIETKIEM.MaSTK,
+    KHACHHANG.TenKH,
+    BANGSODU.SoDuGoc,
+    BANGSODU.LaiTichLuy,
+    BANGSODU.SoDuThucTe
+FROM BANGSODU, SOTIETKIEM, TAIKHOAN, KHACHHANG
+WHERE BANGSODU.MaSTK = SOTIETKIEM.MaSTK
+  AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
+  AND TAIKHOAN.MaKH = KHACHHANG.MaKH;
+GO
+
+-- 11. View tổng hợp số dư (4 bảng)
+CREATE OR ALTER VIEW V_TONGHOPSODU AS
+SELECT 
+    KHACHHANG.MaKH,
+    KHACHHANG.TenKH,
+    SUM(BANGSODU.SoDuThucTe) AS TongSoDu
+FROM BANGSODU, SOTIETKIEM, TAIKHOAN, KHACHHANG
+WHERE BANGSODU.MaSTK = SOTIETKIEM.MaSTK
+  AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
+  AND TAIKHOAN.MaKH = KHACHHANG.MaKH
+GROUP BY KHACHHANG.MaKH, KHACHHANG.TenKH;
+GO
+
+-- 12. View chi tiết báo cáo (4 bảng)
+CREATE OR ALTER VIEW V_BaoCaoChiTiet AS
+SELECT 
+    BAOCAO.MaBaoCao,
+    KHACHHANG.TenKH,
+    BAOCAO.NgayBaoCao,
+    BAOCAO.LoaiBaoCao,
+    BAOCAO.SoDuHienTai
+FROM BAOCAO, SOTIETKIEM, TAIKHOAN, KHACHHANG
+WHERE BAOCAO.MaSTK = SOTIETKIEM.MaSTK
+  AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
+  AND TAIKHOAN.MaKH = KHACHHANG.MaKH;
+GO
+
+-- 13. View báo cáo theo khách hàng (4 bảng)
+CREATE OR ALTER VIEW V_BaoCaoTheoKH AS
+SELECT 
+    KHACHHANG.MaKH,
+    KHACHHANG.TenKH,
+    SUM(BAOCAO.TongTienGui) AS TongTienGui,
+    SUM(BAOCAO.TongLaiNhan) AS TongLaiNhan,
+    SUM(BAOCAO.SoDuHienTai) AS TongSoDu
+FROM BAOCAO, SOTIETKIEM, TAIKHOAN, KHACHHANG
+WHERE BAOCAO.MaSTK = SOTIETKIEM.MaSTK
+  AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
+  AND TAIKHOAN.MaKH = KHACHHANG.MaKH
+GROUP BY KHACHHANG.MaKH, KHACHHANG.TenKH;
+GO
+
+-- 14. View báo cáo theo nhân viên (2 bảng)
+CREATE OR ALTER VIEW V_BaoCaoTheoNV AS
+SELECT 
+    NHANVIEN.MaNV,
+    NHANVIEN.TenNV,
+    COUNT(BAOCAO.MaSTK) AS SoLuongBaoCao,
+    SUM(BAOCAO.TongTienGui) AS TongTienGui
+FROM BAOCAO, NHANVIEN
+WHERE BAOCAO.MaNVTao = NHANVIEN.MaNV
+GROUP BY NHANVIEN.MaNV, NHANVIEN.TenNV;
+GO
+
+-- 15. View khách hàng không hoạt động (4 bảng)
+CREATE OR ALTER VIEW V_KhachHangKhongHoatDong_ChiTiet AS
+SELECT 
+    KHACHHANG.MaKH,
+    KHACHHANG.TenKH,
+    KHACHHANG.SDT,
+    KHACHHANG.Email,
+    TAIKHOAN.MaTK,
+    TAIKHOAN.SoTK,
+    TAIKHOAN.SoDu,
+    TAIKHOAN.TrangThai AS TrangThaiTaiKhoan,
+    COUNT(SOTIETKIEM.MaSTK) AS SoLuongSTK,
+    GiaoDichCuoi.NgayGDCuoi,
+    DATEDIFF(DAY, GiaoDichCuoi.NgayGDCuoi, GETDATE()) AS SoNgayKhongGiaoDich
+FROM KHACHHANG, TAIKHOAN, SOTIETKIEM,
+    (SELECT GiaoDichTongHop.MaSTK, MAX(GiaoDichTongHop.NgayGD) AS NgayGDCuoi
+     FROM (SELECT GIAODICHNOP.MaSTK, GIAODICHNOP.NgayGD FROM GIAODICHNOP
+           UNION ALL
+           SELECT GIAODICHRUT.MaSTK, GIAODICHRUT.NgayGD FROM GIAODICHRUT) AS GiaoDichTongHop
+     GROUP BY GiaoDichTongHop.MaSTK) AS GiaoDichCuoi
+WHERE KHACHHANG.MaKH = TAIKHOAN.MaKH
+  AND TAIKHOAN.MaTK = SOTIETKIEM.MaTK
+  AND SOTIETKIEM.MaSTK = GiaoDichCuoi.MaSTK
+  AND (TAIKHOAN.TrangThai IN (N'Không hoạt động', N'Tạm khóa', N'Đóng băng')
+       OR DATEDIFF(DAY, GiaoDichCuoi.NgayGDCuoi, GETDATE()) > 180)
+GROUP BY KHACHHANG.MaKH, KHACHHANG.TenKH, KHACHHANG.SDT, KHACHHANG.Email,
+         TAIKHOAN.MaTK, TAIKHOAN.SoTK, TAIKHOAN.SoDu, TAIKHOAN.TrangThai,
+         GiaoDichCuoi.NgayGDCuoi;
+GO
+
+-- 16. View khách hàng tiềm năng (4 bảng)
+CREATE OR ALTER VIEW V_KhachHangTiemNang AS
 SELECT 
     KHACHHANG.MaKH,
     KHACHHANG.TenKH,
@@ -109,194 +267,35 @@ GROUP BY KHACHHANG.MaKH, KHACHHANG.TenKH
 HAVING COUNT(SOTIETKIEM.MaSTK) >= 2 OR SUM(BANGSODU.SoDuThucTe) >= 50000000;
 GO
 
---25
-CREATE VIEW V_KhachHangKhongHoatDong AS
+-- =============================================
+-- II. VIEW MỚI: TỔNG HỢP SỔ TIẾT KIỆM THEO KHÁCH HÀNG
+-- =============================================
+
+-- 17. View tổng hợp sổ tiết kiệm theo khách hàng (4 bảng)
+CREATE OR ALTER VIEW V_TongHopSTK_KH AS
 SELECT 
     KHACHHANG.MaKH,
     KHACHHANG.TenKH,
-    GiaoDichCuoi.NgayGDCuoi
-FROM 
-    KHACHHANG,
-    TAIKHOAN,
-    SOTIETKIEM,
-    (
-        SELECT 
-            GiaoDichTongHop.MaSTK, 
-            MAX(GiaoDichTongHop.NgayGD) AS NgayGDCuoi
-        FROM (
-            SELECT GIAODICHNOP.MaSTK, GIAODICHNOP.NgayGD FROM GIAODICHNOP
-            UNION ALL
-            SELECT GIAODICHRUT.MaSTK, GIAODICHRUT.NgayGD FROM GIAODICHRUT
-        ) AS GiaoDichTongHop
-        GROUP BY GiaoDichTongHop.MaSTK
-    ) AS GiaoDichCuoi
-WHERE 
-    KHACHHANG.MaKH = TAIKHOAN.MaKH
-    AND TAIKHOAN.MaTK = SOTIETKIEM.MaTK
-    AND SOTIETKIEM.MaSTK = GiaoDichCuoi.MaSTK
-    AND DATEDIFF(DAY, GiaoDichCuoi.NgayGDCuoi, GETDATE()) > 180;
+    KHACHHANG.SDT,
+    KHACHHANG.Email,
+    COUNT(SOTIETKIEM.MaSTK) AS TongSoSTK,
+    SUM(SOTIETKIEM.TienGoc) AS TongTienGoc,
+    SUM(BANGSODU.SoDuThucTe) AS TongSoDuHienTai,
+    MAX(SOTIETKIEM.NgayMoSo) AS NgayMoSoGanNhat
+FROM KHACHHANG, TAIKHOAN, SOTIETKIEM, BANGSODU
+WHERE KHACHHANG.MaKH = TAIKHOAN.MaKH
+  AND TAIKHOAN.MaTK = SOTIETKIEM.MaTK
+  AND SOTIETKIEM.MaSTK = BANGSODU.MaSTK
+  AND SOTIETKIEM.TrangThai = N'Đang hoạt động'
+GROUP BY KHACHHANG.MaKH, KHACHHANG.TenKH, KHACHHANG.SDT, KHACHHANG.Email;
 GO
 
---Đức
---TẠO VIEW
-CREATE VIEW V_ThongTinNV AS
-SELECT MaNV, TenNV, ChucVu, PhongBan, Email, TrangThai
-FROM NHANVIEN;
-SELECT * FROM V_ThongTinNV
-
-CREATE VIEW V_ThongTinKH AS
-SELECT KHACHHANG.MaKH, KHACHHANG.TenKH, KHACHHANG.SDT, KHACHHANG.Email, KHACHHANG.MaNVTiepTan, NHANVIEN.TenNV AS TenNV
-FROM KHACHHANG, NHANVIEN
-WHERE KHACHHANG.MaNVTiepTan = NHANVIEN.MaNV;
-SELECT * FROM V_ThongTinKH
-
-CREATE VIEW V_LoaiHinhTK AS
-SELECT MaLoaiHinh, TenLoaiHinh, KyHanThang, LaiSuatNam, LaiSuatThang
-FROM LoaiHinhTK;
-SELECT * FROM V_LoaiHinhTK
-
-CREATE VIEW V_HinhThucTraLai AS
-SELECT MaHTTraLai, TenHTTraLai, MoTa
-FROM HinhThucTraLai;
-SELECT * FROM V_HinhThucTraLai
-
-CREATE VIEW V_HTGui AS
-SELECT MaHTGui, TenHTGui, MoTa
-FROM HTGui;
-SELECT * FROM V_HTGui
-
-CREATE VIEW V_LoaiGD AS
-SELECT MaLoaiGD, TenLoaiGD, MoTa
-FROM LoaiGD;
-SELECT * FROM V_LoaiGD
-
-CREATE VIEW V_TaiKhoanKH AS
-SELECT TKNH.MaTK, TKNH.SoTK, KH.TenKH, TKNH.SoDu, TKNH.TrangThai
-FROM TKNH
-INNER JOIN KH ON TKNH.MaKH = KH.MaKH;
-SELECT * FROM V_TaiKhoanKH
-
-CREATE VIEW V_STKChiTiet AS
-SELECT
-    STK.MaSTK,
-    KH.TenKH,
-    LH.TenLoaiHinh,
-    HG.TenHTGui,
-    TL.TenHTTraLai,
-    STK.TienGoc,
-    STK.TrangThai
-FROM STK
-INNER JOIN TKNH ON STK.MaTK = TKNH.MaTK
-INNER JOIN KH ON TKNH.MaKH = KH.MaKH
-INNER JOIN LoaiHinhTK AS LH ON STK.MaLoaiHinh = LH.MaLoaiHinh
-INNER JOIN HTGui AS HG ON STK.MaHTGui = HG.MaHTGui
-INNER JOIN HinhThucTraLai AS TL ON STK.MaHTTraLai = TL.MaHTTraLai;
-SELECT * FROM V_STKChiTiet
-
-
---Nghĩa
-
 -- =============================================
--- VIEW: V_STK_DANGHOATDONG
+-- III. VIEW TỔNG HỢP GIAO DỊCH (2 bảng)
 -- =============================================
-CREATE OR ALTER VIEW V_STK_DANGHOATDONG
-AS
-SELECT 
-    SOTIETKIEM.MaSTK,
-    KHACHHANG.TenKH,
-    SOTIETKIEM.NgayMoSo,
-    SOTIETKIEM.NgayDaoHan,
-    SOTIETKIEM.TrangThai
-FROM 
-    SOTIETKIEM,
-    TAIKHOAN,
-    KHACHHANG
-WHERE 
-    SOTIETKIEM.MaTK = TAIKHOAN.MaTK
-    AND TAIKHOAN.MaKH = KHACHHANG.MaKH
-    AND SOTIETKIEM.TrangThai = N'Đang hoạt động';
-GO
 
-
--- =============================================
--- VIEW: V_STK_SAPDAOHAN
--- =============================================
-CREATE VIEW V_STK_SAPDAOHAN
-AS
-SELECT 
-    SOTIETKIEM.MaSTK,
-    KHACHHANG.TenKH,
-    SOTIETKIEM.NgayMoSo,
-    SOTIETKIEM.NgayDaoHan,
-    SOTIETKIEM.TrangThai
-FROM 
-    SOTIETKIEM,
-    TAIKHOAN,
-    KHACHHANG
-WHERE 
-    SOTIETKIEM.MaTK = TAIKHOAN.MaTK
-    AND TAIKHOAN.MaKH = KHACHHANG.MaKH
-    AND SOTIETKIEM.NgayDaoHan BETWEEN GETDATE() AND DATEADD(DAY,7,GETDATE());
-GO
-
-
--- =============================================
--- VIEW: V_GDNOPTIEN
--- =============================================
-CREATE VIEW V_GDNOPTIEN
-AS
-SELECT 
-    GIAODICHNOP.MaGDnop,
-    KHACHHANG.TenKH,
-    NHANVIEN.TenNV,
-    GIAODICHNOP.SoTienNop,
-    GIAODICHNOP.NgayGD,
-    GIAODICHNOP.HTThanhToan
-FROM 
-    GIAODICHNOP,
-    SOTIETKIEM,
-    TAIKHOAN,
-    KHACHHANG,
-    NHANVIEN
-WHERE 
-    GIAODICHNOP.MaSTK = SOTIETKIEM.MaSTK
-    AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
-    AND TAIKHOAN.MaKH = KHACHHANG.MaKH
-    AND GIAODICHNOP.MaNVThucHien = NHANVIEN.MaNV;
-GO
-
-
--- =============================================
--- VIEW: V_GDRUTTIEN
--- =============================================
-CREATE VIEW V_GDRUTTIEN
-AS
-SELECT 
-    GIAODICHRUT.MaGDrut,
-    KHACHHANG.TenKH,
-    NHANVIEN.TenNV,
-    GIAODICHRUT.SoTienRut,
-    GIAODICHRUT.NgayGD,
-    GIAODICHRUT.LaiNhanDuoc
-FROM 
-    GIAODICHRUT,
-    SOTIETKIEM,
-    TAIKHOAN,
-    KHACHHANG,
-    NHANVIEN
-WHERE 
-    GIAODICHRUT.MaSTK = SOTIETKIEM.MaSTK
-    AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
-    AND TAIKHOAN.MaKH = KHACHHANG.MaKH
-    AND GIAODICHRUT.MaNVThucHien = NHANVIEN.MaNV;
-GO
-
-
--- =============================================
--- VIEW: V_TONGHOPGD
--- =============================================
-CREATE VIEW V_TONGHOPGD
-AS
+-- 18. View tổng hợp giao dịch (2 bảng)
+CREATE OR ALTER VIEW V_TONGHOPGD AS
 SELECT 
     GIAODICHNOP.MaGDnop AS MaGD,
     GIAODICHNOP.MaSTK,
@@ -314,12 +313,8 @@ SELECT
 FROM GIAODICHRUT;
 GO
 
-
--- =============================================
--- VIEW: V_GD_THEONGAY
--- =============================================
-CREATE VIEW V_GD_THEONGAY
-AS
+-- 19. View giao dịch theo ngày (2 bảng)
+CREATE OR ALTER VIEW V_GD_THEONGAY AS
 SELECT 
     GIAODICHNOP.MaGDnop AS MaGD,
     GIAODICHNOP.MaSTK,
@@ -339,74 +334,4 @@ SELECT
     N'Rút tiền' AS LoaiGD
 FROM GIAODICHRUT
 WHERE CONVERT(DATE, GIAODICHRUT.NgayGD) = CONVERT(DATE, GETDATE());
-GO
-
-
--- =============================================
--- VIEW: V_BANGTINHLAICHITIET
--- =============================================
-CREATE VIEW V_BANGTINHLAICHITIET
-AS
-SELECT 
-    BANGTINHLAI.MaTinhLai,
-    SOTIETKIEM.MaSTK,
-    KHACHHANG.TenKH,
-    BANGTINHLAI.LaiSuatApDung,
-    BANGTINHLAI.LaiThangNay,
-    BANGTINHLAI.LaiTichLuy
-FROM 
-    BANGTINHLAI,
-    SOTIETKIEM,
-    TAIKHOAN,
-    KHACHHANG
-WHERE 
-    BANGTINHLAI.MaSTK = SOTIETKIEM.MaSTK
-    AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
-    AND TAIKHOAN.MaKH = KHACHHANG.MaKH;
-GO
-
-
--- =============================================
--- VIEW: V_SODUSTK
--- =============================================
-CREATE VIEW V_SODUSTK
-AS
-SELECT 
-    SOTIETKIEM.MaSTK,
-    KHACHHANG.TenKH,
-    BANGSODU.SoDuGoc,
-    BANGSODU.LaiTichLuy,
-    BANGSODU.SoDuThucTe
-FROM 
-    BANGSODU,
-    SOTIETKIEM,
-    TAIKHOAN,
-    KHACHHANG
-WHERE 
-    BANGSODU.MaSTK = SOTIETKIEM.MaSTK
-    AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
-    AND TAIKHOAN.MaKH = KHACHHANG.MaKH;
-GO
-
-
--- =============================================
--- VIEW: V_TONGHOPSODU
--- =============================================
-CREATE VIEW V_TONGHOPSODU
-AS
-SELECT 
-    KHACHHANG.MaKH,
-    KHACHHANG.TenKH,
-    SUM(BANGSODU.SoDuThucTe) AS TongSoDu
-FROM 
-    BANGSODU,
-    SOTIETKIEM,
-    TAIKHOAN,
-    KHACHHANG
-WHERE 
-    BANGSODU.MaSTK = SOTIETKIEM.MaSTK
-    AND SOTIETKIEM.MaTK = TAIKHOAN.MaTK
-    AND TAIKHOAN.MaKH = KHACHHANG.MaKH
-GROUP BY 
-    KHACHHANG.MaKH, KHACHHANG.TenKH;
 GO
