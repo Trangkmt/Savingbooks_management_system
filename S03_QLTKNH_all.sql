@@ -415,6 +415,7 @@ WHERE SOTIETKIEM.MaTK = TAIKHOAN.MaTK
   AND TAIKHOAN.MaKH = KHACHHANG.MaKH
   AND SOTIETKIEM.TrangThai = N'Đang hoạt động';
 GO
+Select * from V_STK_DANGHOATDONG
 
 -- 5. View sổ tiết kiệm sắp đáo hạn (3 bảng)
 CREATE OR ALTER VIEW V_STK_SAPDAOHAN AS
@@ -429,6 +430,8 @@ WHERE SOTIETKIEM.MaTK = TAIKHOAN.MaTK
   AND TAIKHOAN.MaKH = KHACHHANG.MaKH
   AND SOTIETKIEM.NgayDaoHan BETWEEN GETDATE() AND DATEADD(DAY,7,GETDATE());
 GO
+
+Select * from V_STK_SAPDAOHAN
 
 -- 6. View giao dịch nộp tiền (5 bảng)
 CREATE OR ALTER VIEW V_GDNOPTIEN AS
@@ -601,6 +604,7 @@ GROUP BY KHACHHANG.MaKH, KHACHHANG.TenKH, KHACHHANG.SDT, KHACHHANG.Email,
          TAIKHOAN.MaTK, TAIKHOAN.SoTK, TAIKHOAN.SoDu, TAIKHOAN.TrangThai,
          GiaoDichCuoi.NgayGDCuoi;
 GO
+SELECT * FROM V_KhachHangKhongHoatDong_ChiTiet
 
 -- 16. View khách hàng tiềm năng (4 bảng)
 CREATE OR ALTER VIEW V_KhachHangTiemNang AS
@@ -1931,7 +1935,7 @@ BEGIN
 END;
 GO
 
--- Trigger: Cập nhật ngày đáo hạn và số dư khi thay đổi thông tin sổ
+-- Trigger: Cập nhật ngày đáo hạn (soduthucte da duoc set tu dong cap nhat san)
 CREATE OR ALTER TRIGGER trg_Update_SoTietKiem
 ON SOTIETKIEM
 AFTER UPDATE
@@ -1943,15 +1947,6 @@ BEGIN
         SET NgayDaoHan = DATEADD(MONTH, LOAIHINHTK.KyHanThang, SOTIETKIEM.NgayMoSo)
         FROM SOTIETKIEM, LOAIHINHTK
         WHERE SOTIETKIEM.MaLoaiHinh = LOAIHINHTK.MaLoaiHinh;
-    END
-
-    IF UPDATE(TienGoc)
-    BEGIN
-        UPDATE BANGSODU
-        SET SoDuGoc = SOTIETKIEM.TienGoc,
-            SoDuThucTe = SOTIETKIEM.TienGoc + ISNULL(BANGSODU.LaiTichLuy, 0)
-        FROM BANGSODU, SOTIETKIEM
-        WHERE BANGSODU.MaSTK = SOTIETKIEM.MaSTK;
     END
 END;
 GO
@@ -2299,7 +2294,8 @@ EXEC sp_ThongKeDoanhSoTheoThoiGian N'THANG', '2023-01-01', '2024-01-31';
 
 -- 1. Trigger trên bảng SOTIETKIEM
 DELETE FROM SOTIETKIEM WHERE MaSTK = 'STK01'; -- Sẽ bị trigger chặn
-UPDATE SOTIETKIEM SET MaLoaiHinh = 'LHTK02' WHERE MaSTK = 'STK01'; -- Trigger tự động tính lại ngày đáo hạn
+UPDATE SOTIETKIEM SET MaLoaiHinh = 'LHTK03' WHERE MaSTK = 'STK01'; -- Trigger tự động tính lại ngày đáo hạn
+Select * from SOTIETKIEM
 
 -- 2. Trigger trên bảng GIAODICH
 INSERT INTO GIAODICHNOP VALUES ('GDnop11', 'STK01', 'NV01', 'LGD01', 5000000, GETDATE(), N'Tiền mặt', NULL);
@@ -2307,6 +2303,7 @@ INSERT INTO GIAODICHRUT VALUES ('GDrut11', 'STK01', 'NV02', 'LGD02', 2000000, GE
 
 -- 3. Trigger trên bảng BANGTINHLAI
 INSERT INTO BANGTINHLAI VALUES ('BTL11', 'STK01', 'NV01', '2024-01-31', 4.00, 25000000, 83333, 83333);
+Select * from BANGTINHLAI
 
 -- 4. Trigger trên bảng NHANVIEN
 UPDATE NHANVIEN SET TrangThai = N'Nghỉ việc' WHERE MaNV = 'NV01'; -- Trigger tự động cập nhật tài khoản
