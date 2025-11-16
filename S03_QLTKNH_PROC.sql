@@ -59,7 +59,7 @@ BEGIN
     
     UPDATE TAIKHOAN
     SET 
-        MaKH = COALESCE(@MaKH, MaKH),
+        MaKH = COALESCE(@MaKH, MaKH), --coalesce() trả về null hoặc ko null nếu giá trị biến khác ban đầu --> giúp chỉnh sửa 1 hay nhiều thông tin
         MaNVQL = COALESCE(@MaNVQL, MaNVQL),
         SoTK = COALESCE(@SoTK, SoTK),
         SoDu = COALESCE(@SoDu, SoDu),
@@ -138,13 +138,19 @@ BEGIN
 
     -- Lấy tài khoản ngân hàng của khách
     SELECT TOP 1 @MaTK = MaTK FROM TAIKHOAN WHERE MaKH = @MaKH;
-
+    
     IF @MaTK IS NULL
     BEGIN
         PRINT N'Khách hàng chưa có tài khoản ngân hàng';
         RETURN;
     END;
 
+    -- Kiểm tra mã stk
+    IF EXISTS (SELECT * FROM SOTIETKIEM WHERE MaSTK = @MaSTK)
+    BEGIN
+        PRINT N'Mã sổ tiết kiệm đã tồn tại. Vui lòng nhập lại mã khác';
+        RETURN;
+    END;
     -- Thêm sổ tiết kiệm
     INSERT INTO SOTIETKIEM(MaSTK, MaTK, MaNVTao, MaLoaiHinh, MaHTTraLai, MaHTGui,
                     TienGoc, TienHT, NgayMoSo, NgayDaoHan, TrangThai)
@@ -158,6 +164,8 @@ BEGIN
     PRINT N'Mở sổ tiết kiệm mới thành công. Mã sổ: ' + @MaSTK;
 END;
 GO
+
+
 
 -- Thủ tục: Sửa sổ tiết kiệm
 CREATE OR ALTER PROCEDURE sp_Sua_SoTietKiem
@@ -237,6 +245,12 @@ BEGIN
         PRINT N'Sổ tiết kiệm không hoạt động';
         RETURN;
     END;
+
+    IF EXISTS (SELECT 1 FROM GIAODICHNOP WHERE MaGDnop = @MaGD)
+    BEGIN 
+        PRINT N'Mã giao dịch đã tồn tại. Vui lòng nhập mã giao dịch khác'
+        RETURN;
+    END;
     
     -- Kiểm tra số tiền hợp lệ
     IF @SoTien <= 0
@@ -286,6 +300,12 @@ BEGIN
         @NgayDaoHan = S.NgayDaoHan
     FROM SOTIETKIEM S, BANGSODU B
     WHERE S.MaSTK = B.MaSTK AND S.MaSTK = @MaSTK;
+
+    IF EXISTS(SELECT * FROM GIAODICHRUT WHERE MaGDrut = @MaGD)
+    BEGIN
+        PRINT N'Mã giao dịch đã tồn tại. Vui lòng nhập mã giao dịch khác';
+        RETURN;
+    END;
 
     -- Kiểm tra đủ tiền rút hay không
     IF @SoTienRut > @SoDu
@@ -1040,7 +1060,7 @@ BEGIN
 END;
 GO
 
-USE S03_QLTKNH;
+
 GO
 
 -- =============================================
@@ -1066,7 +1086,7 @@ BEGIN
         (SELECT COUNT(*) FROM TAIKHOAN) AS TongSoTaiKhoan,
         (SELECT COUNT(*) FROM TAIKHOAN WHERE TAIKHOAN.TrangThai = N'Hoạt động') AS SoTaiKhoanHoatDong,
         
-        (SELECT COUNT(*) FROM SOTIETKIEM) AS TongSoSoTietKiem,
+        (SELECT COUNT(*) FROM SOTIETKIEM) AS TongSoSoTietKiem, --đếm tất cả các dòng
         (SELECT COUNT(*) FROM SOTIETKIEM WHERE SOTIETKIEM.TrangThai = N'Đang hoạt động') AS SoSoDangHoatDong,
         (SELECT COUNT(*) FROM SOTIETKIEM WHERE SOTIETKIEM.TrangThai = N'Đã tất toán') AS SoSoDaTatToan,
         
@@ -1162,6 +1182,9 @@ BEGIN
     END
     ELSE IF @LoaiThongKe = N'QUY'
     BEGIN
+            --Tính quý bắt đầu: Q1: 1->3, Q2: 4->6,... 
+            --ví dụ: date: 3-3-2025 -> current date (ngày đầu quý): 2025/1/1
+            --(3-1)/3+1=1 -> tháng 1 là đầu quý 1
         SET @CurrentDate = DATEFROMPARTS(YEAR(@TuNgay), ((MONTH(@TuNgay)-1)/3)*3+1, 1)
         WHILE @CurrentDate <= @DenNgay
         BEGIN
@@ -1171,6 +1194,8 @@ BEGIN
                 DATEADD(DAY, -1, DATEADD(MONTH, 3, @CurrentDate))
             )
             SET @CurrentDate = DATEADD(MONTH, 3, @CurrentDate)
+            --cú pháp vd: Q1/2025 - 1/1/2025 - 31/3/2025
+            --              Q2/2025 - 31/3/2025 - 30/6/2025
         END
     END
     ELSE IF @LoaiThongKe = N'NAM'
@@ -1191,6 +1216,8 @@ BEGIN
         #ThoiGianThongKe.KhoangThoiGian,
         #ThoiGianThongKe.NgayBatDau,
         #ThoiGianThongKe.NgayKetThuc,
+        --isnull() trả về 0
+        --sum() tính tổng
         ISNULL(SUM(CASE WHEN GiaoDichTongHop.NgayGD BETWEEN #ThoiGianThongKe.NgayBatDau AND #ThoiGianThongKe.NgayKetThuc THEN GiaoDichTongHop.SoTienNop ELSE 0 END), 0) AS TongTienNop,
         ISNULL(SUM(CASE WHEN GiaoDichTongHop.NgayGD BETWEEN #ThoiGianThongKe.NgayBatDau AND #ThoiGianThongKe.NgayKetThuc THEN GiaoDichTongHop.SoTienRut ELSE 0 END), 0) AS TongTienRut,
         ISNULL(COUNT(CASE WHEN GiaoDichTongHop.NgayGD BETWEEN #ThoiGianThongKe.NgayBatDau AND #ThoiGianThongKe.NgayKetThuc THEN GiaoDichTongHop.MaGD END), 0) AS TongSoGiaoDich,
