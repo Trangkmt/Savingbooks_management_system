@@ -32,7 +32,7 @@ BEGIN
 END;
 GO
 
--- Trigger: Cập nhật ngày đáo hạn và số dư khi thay đổi thông tin sổ
+-- Trigger: Cập nhật ngày đáo hạn 
 CREATE OR ALTER TRIGGER trg_Update_SoTietKiem
 ON SOTIETKIEM
 AFTER UPDATE
@@ -44,15 +44,6 @@ BEGIN
         SET NgayDaoHan = DATEADD(MONTH, LOAIHINHTK.KyHanThang, SOTIETKIEM.NgayMoSo)
         FROM SOTIETKIEM, LOAIHINHTK
         WHERE SOTIETKIEM.MaLoaiHinh = LOAIHINHTK.MaLoaiHinh;
-    END
-
-    IF UPDATE(TienGoc)
-    BEGIN
-        UPDATE BANGSODU
-        SET SoDuGoc = SOTIETKIEM.TienGoc,
-            SoDuThucTe = SOTIETKIEM.TienGoc + ISNULL(BANGSODU.LaiTichLuy, 0)
-        FROM BANGSODU, SOTIETKIEM
-        WHERE BANGSODU.MaSTK = SOTIETKIEM.MaSTK;
     END
 END;
 GO
