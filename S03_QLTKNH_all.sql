@@ -11,7 +11,7 @@ GO
 --DROP DATABASE S03_QLTKNH;
 --GO
 
--- BẢNG DANH MỤC
+-- BẢNG DANH MỤCLAI
 CREATE TABLE HINHTHUCTRALAI (
     MaHTTraLai CHAR(10) PRIMARY KEY,
     TenHTTraLai NVARCHAR(100) NOT NULL,
@@ -813,6 +813,18 @@ BEGIN
         RETURN;
     END;
 
+    IF EXISTS (SELECT 1 FROM SOTIETKIEM WHERE MaSTK = @MaSTK)
+    BEGIN
+        PRINT N'Mã sổ tiết kiệm đã tồn tại';
+        RETURN;
+    END;
+
+    IF EXISTS (SELECT 1 FROM BANGSODU WHERE MaSoDu = @MaSoDu)
+    BEGIN
+        PRINT N'Mã bảng số dư đã tồn tại';
+        RETURN;
+    END;
+
     -- Kiểm tra số tiền gửi tối thiểu
     IF @TienGoc < 100000
     BEGIN
@@ -859,8 +871,6 @@ BEGIN
     PRINT N'Mở sổ tiết kiệm mới thành công. Mã sổ: ' + @MaSTK;
 END;
 GO
-
-
 
 -- Thủ tục: Sửa sổ tiết kiệm
 CREATE OR ALTER PROCEDURE sp_Sua_SoTietKiem
@@ -991,10 +1001,10 @@ BEGIN
 
     -- Lấy thông tin số dư và ngày đáo hạn
     SELECT 
-        @SoDu = B.SoDuThucTe, 
-        @NgayDaoHan = S.NgayDaoHan
-    FROM SOTIETKIEM S, BANGSODU B
-    WHERE S.MaSTK = B.MaSTK AND S.MaSTK = @MaSTK;
+        @SoDu = BANGSODU.SoDuThucTe, 
+        @NgayDaoHan = SOTIETKIEM.NgayDaoHan
+    FROM SOTIETKIEM, BANGSODU
+    WHERE SOTIETKIEM.MaSTK = BANGSODU.MaSTK AND SOTIETKIEM.MaSTK = @MaSTK;
 
     IF EXISTS(SELECT * FROM GIAODICHRUT WHERE MaGDrut = @MaGD)
     BEGIN
@@ -1981,6 +1991,108 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER TRIGGER trg_TaoLaiTichLuyKhiMoSo
+ON SOTIETKIEM
+AFTER INSERT
+AS
+BEGIN
+    DECLARE @MaSTK CHAR(10);
+    DECLARE @TienGoc DECIMAL(18,2);
+    DECLARE @MaLoaiHinh CHAR(10);
+    DECLARE @LaiSuatNam DECIMAL(5,2);
+    DECLARE @NgayMoSo DATE;
+    DECLARE @NgayDauThang DATE;
+    DECLARE @NgayCuoiThang DATE;
+    DECLARE @NgayTinhLai DATE;
+    DECLARE @LaiThangNay DECIMAL(18,2);
+    DECLARE @LaiTichLuy DECIMAL(18,2);
+    DECLARE @MaTinhLai CHAR(10);
+    DECLARE @MaSoDu CHAR(10);
+    
+    SELECT 
+        @MaSTK = MaSTK,
+        @TienGoc = TienGoc,
+        @MaLoaiHinh = MaLoaiHinh,
+        @NgayMoSo = NgayMoSo 
+    FROM inserted;
+    
+    SELECT @LaiSuatNam = LaiSuatNam
+    FROM LOAIHINHTK
+    WHERE MaLoaiHinh = @MaLoaiHinh;
+    
+    IF @LaiSuatNam IS NULL
+    BEGIN
+        PRINT N'Không tìm thấy lãi suất cho loại hình ' + @MaLoaiHinh;
+        RETURN;
+    END;
+
+    -- Tính ngày đầu tháng và ngày cuối tháng HIỆN TẠI
+    SET @NgayDauThang = DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1);
+    SET @NgayCuoiThang = EOMONTH(GETDATE());
+    
+    -- Ngày tính lãi = ngày cuối tháng (để tính lãi cho cả tháng)
+    SET @NgayTinhLai = @NgayCuoiThang;
+
+    -- Tính lãi tháng này:
+    -- Nếu mở sổ TRƯỚC ngày đầu tháng -> tính từ đầu tháng đến cuối tháng
+    -- Nếu mở sổ TRONG tháng -> tính từ ngày mở sổ đến cuối tháng
+    IF @NgayMoSo < @NgayDauThang
+    BEGIN
+        -- Mở sổ trước tháng này: tính lãi cả tháng
+        SET @LaiThangNay = dbo.fn_TinhLaiDenNgay(@TienGoc, @LaiSuatNam, @NgayDauThang, @NgayCuoiThang);
+    END
+    ELSE
+    BEGIN
+        -- Mở sổ trong tháng này: tính từ ngày mở sổ đến cuối tháng
+        SET @LaiThangNay = dbo.fn_TinhLaiDenNgay(@TienGoc, @LaiSuatNam, @NgayMoSo, @NgayCuoiThang);
+    END
+    
+    -- Lãi tích lũy = lãi tháng này (vì là lần tính lãi đầu tiên)
+    SET @LaiTichLuy = @LaiThangNay;
+
+    -- Tạo mã tính lãi và mã số dư
+    SET @MaTinhLai = 'BTL_' + @MaSTK + '_' + FORMAT(@NgayCuoiThang, 'yyyyMMdd');
+    SET @MaSoDu = 'BSD_' + @MaSTK;
+
+    -- Kiểm tra mã tính lãi đã tồn tại chưa
+    IF EXISTS (SELECT 1 FROM BANGTINHLAI WHERE MaTinhLai = @MaTinhLai)
+    BEGIN
+        PRINT N'Mã tính lãi ' + @MaTinhLai + N' đã tồn tại';
+        RETURN;
+    END;
+
+    -- ĐẢM BẢO BANGSODU TỒN TẠI: Tạo nếu chưa có
+    IF NOT EXISTS (SELECT 1 FROM BANGSODU WHERE MaSTK = @MaSTK)
+    BEGIN
+        INSERT INTO BANGSODU(MaSoDu, MaSTK, NgayCapNhat, SoDuGoc, LaiTichLuy)
+        VALUES (@MaSoDu, @MaSTK, @NgayTinhLai, @TienGoc, @LaiTichLuy);
+    END
+    ELSE
+    BEGIN
+        -- Cập nhật BANGSODU nếu đã tồn tại
+        UPDATE BANGSODU
+        SET LaiTichLuy = @LaiTichLuy,
+            NgayCapNhat = @NgayTinhLai
+        WHERE MaSTK = @MaSTK;
+    END;
+
+    -- Thêm bản ghi tính lãi
+    INSERT INTO BANGTINHLAI (MaTinhLai, MaSTK, MaNVTinh, NgayTinhLai, 
+                             LaiSuatApDung, SoDuTinhLai, LaiThangNay, LaiTichLuy)
+    VALUES (@MaTinhLai, @MaSTK, 'NV01', @NgayTinhLai, 
+            @LaiSuatNam, @TienGoc, @LaiThangNay, @LaiTichLuy);
+
+    PRINT N'Đã tạo lãi tích lũy. Ngày tính: ' + CONVERT(NVARCHAR(10), @NgayTinhLai, 103) +
+          N', Lãi tháng này: ' + CAST(@LaiThangNay AS NVARCHAR(20)) +
+          N', Lãi tích lũy: ' + CAST(@LaiTichLuy AS NVARCHAR(20));
+END;
+GO
+
+-- Disable và enable trigger
+DISABLE TRIGGER trg_TaoLaiTichLuyKhiMoSo ON SOTIETKIEM;
+GO
+ENABLE TRIGGER trg_TaoLaiTichLuyKhiMoSo ON SOTIETKIEM;
+GO
 -- =============================================
 -- TRIGGER CHO BẢNG GIAODICHNOP
 -- =============================================
@@ -2047,6 +2159,8 @@ BEGIN
     PRINT N'Đã cập nhật lãi tích lũy vào bảng số dư.';
 END;
 GO
+
+Disable TRIGGER trg_Insert_BangTinhLai ON BANGTINHLAI
 
 -- =============================================
 -- TRIGGER CHO BẢNG BANGSODU
@@ -2305,12 +2419,16 @@ EXEC sp_Sua_TaiKhoan 'TKNH01', @SoDu = 25000000;
 EXEC sp_Xoa_TaiKhoan 'TKNH11';
 
 -- 2. Thủ tục quản lý sổ tiết kiệm
-EXEC sp_MoSoTietKiemMoi 'STK11', 'BSD11', 'KH01', 'LHTK01', 'HTG01', 'HTTL01', 50000000, 'NV01';
+EXEC sp_MoSoTietKiemMoi 'STK34', 'BSD23', 'KH01', 'LHTK01', 'HTG01', 'HTTL01', 50000000, 'NV01';
 EXEC sp_MoSoTietKiemMoi 'STK13', 'BSD11', 'KH01', 'LHTK12', 'HTG01', 'HTTL01', 50000000, 'NV01';
+INSERT INTO SOTIETKIEM VALUES ('STK28','TKNH01','NV01','LHTK01','HTTL01','HTG01',20000000,20000000,'2023-03-01','2023-06-01',N'Đang hoạt động')
+
 select * from SOTIETKIEM
 select * from LOAIHINHTK
+select * from BANGSODU
+select * from BANGTINHLAI
 EXEC sp_GuiTienVaoSo 'GDnop13', 'STK01', 10000000, 'NV01', 'LGD01';
-EXEC sp_RutTienTuSo 'GDrut11', 'STK01', 5000000, 'NV02', 'LGD02';
+EXEC sp_RutTienTuSo 'GDrut14', 'STK01', 5000000, 'NV02', 'LGD02';
 EXEC sp_Sua_SoTietKiem 'STK01', @TienGoc = 25000000;
 SELECT * FROM SOTIETKIEM
 SELECT  * FROM BANGSODU
@@ -2332,7 +2450,6 @@ EXEC sp_KiemTraSoDu 'STK01';
 EXEC sp_ThongKeTongQuanHeThong '2023-01-01', '2024-01-31';
 EXEC sp_ThongKeTheoLoaiHinhTK 'LHTK01';
 EXEC sp_ThongKeDoanhSoTheoThoiGian N'THANG', '2023-01-01', '2024-01-31';
-
 -- =============================================
 -- VÍ DỤ KÍCH HOẠT TRIGGER
 -- =============================================
@@ -2434,6 +2551,3 @@ SELECT * FROM V_STK_SAPDAOHAN;
 
 -- Thống kê tổng quan hệ thống
 EXEC sp_ThongKeTongQuanHeThong;
-
-
-
