@@ -1995,6 +1995,10 @@ BEGIN
     SET TienHT = TienHT + inserted.SoTienNop
     FROM SOTIETKIEM, inserted
     WHERE SOTIETKIEM.MaSTK = inserted.MaSTK;
+    UPDATE BANGSODU
+    SET SoDuGoc = SoDuGoc + inserted.SoTienNop  
+    FROM SOTIETKIEM, inserted
+    WHERE SOTIETKIEM.MaSTK = inserted.MaSTK;
 
     PRINT N'Đã cập nhật số dư sổ tiết kiệm sau khi nộp tiền.';
 END;
@@ -2014,6 +2018,11 @@ BEGIN
     SET TienHT = TienHT - inserted.SoTienRut
     FROM SOTIETKIEM, inserted
     WHERE SOTIETKIEM.MaSTK = inserted.MaSTK;
+    UPDATE BANGSODU 
+    SET SoDuGoc = SoDuGoc - inserted.SoTienRut
+    FROM SOTIETKIEM, inserted
+    WHERE SOTIETKIEM.MaSTK = inserted.MaSTK;
+    
 
     PRINT N'Đã cập nhật số dư sổ tiết kiệm sau khi rút tiền.';
 END;
@@ -2300,9 +2309,11 @@ EXEC sp_MoSoTietKiemMoi 'STK11', 'BSD11', 'KH01', 'LHTK01', 'HTG01', 'HTTL01', 5
 EXEC sp_MoSoTietKiemMoi 'STK13', 'BSD11', 'KH01', 'LHTK12', 'HTG01', 'HTTL01', 50000000, 'NV01';
 select * from SOTIETKIEM
 select * from LOAIHINHTK
-EXEC sp_GuiTienVaoSo 'GDnop11', 'STK01', 10000000, 'NV01', 'LGD01';
+EXEC sp_GuiTienVaoSo 'GDnop13', 'STK01', 10000000, 'NV01', 'LGD01';
 EXEC sp_RutTienTuSo 'GDrut11', 'STK01', 5000000, 'NV02', 'LGD02';
 EXEC sp_Sua_SoTietKiem 'STK01', @TienGoc = 25000000;
+SELECT * FROM SOTIETKIEM
+SELECT  * FROM BANGSODU
 
 -- 3. Thủ tục tính lãi và số dư
 EXEC sp_Them_BangTinhLai 'BTL11', 'STK01', 'NV01', '2024-01-31', 4.00, 25000000, 83333, 150000;

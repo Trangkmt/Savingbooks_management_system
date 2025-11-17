@@ -62,6 +62,10 @@ BEGIN
     SET TienHT = TienHT + inserted.SoTienNop
     FROM SOTIETKIEM, inserted
     WHERE SOTIETKIEM.MaSTK = inserted.MaSTK;
+    UPDATE BANGSODU
+    SET SoDuGoc = SoDuGoc + inserted.SoTienNop  
+    FROM SOTIETKIEM, inserted
+    WHERE SOTIETKIEM.MaSTK = inserted.MaSTK;
 
     PRINT N'Đã cập nhật số dư sổ tiết kiệm sau khi nộp tiền.';
 END;
@@ -81,10 +85,16 @@ BEGIN
     SET TienHT = TienHT - inserted.SoTienRut
     FROM SOTIETKIEM, inserted
     WHERE SOTIETKIEM.MaSTK = inserted.MaSTK;
+    UPDATE BANGSODU 
+    SET SoDuGoc = SoDuGoc - inserted.SoTienRut
+    FROM SOTIETKIEM, inserted
+    WHERE SOTIETKIEM.MaSTK = inserted.MaSTK;
+    
 
     PRINT N'Đã cập nhật số dư sổ tiết kiệm sau khi rút tiền.';
 END;
 GO
+
 
 -- =============================================
 -- TRIGGER CHO BẢNG BANGTINHLAI
